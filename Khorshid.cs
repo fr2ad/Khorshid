@@ -10,6 +10,7 @@ using System.Drawing.Text;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -28,12 +29,6 @@ namespace Khorshid
             Native.SetProcessDPIAware();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
-            if (args.Length == 2 && args[0] == "--preview")
-            {
-                Preview.Render(args[1]);
-                return;
-            }
 
             bool created;
             using (var mutex = new Mutex(true, "Khorshid.SingleInstance", out created))
@@ -169,6 +164,10 @@ namespace Khorshid
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string ValueName = "Khorshid";
 
+        // Store (MSIX) installs can't use the Run key; they declare a StartupTask that
+        // the user switches on in Settings > Apps > Startup.
+        public static readonly bool Packaged = Native.IsPackaged();
+
         public static bool Enabled
         {
             get
@@ -197,6 +196,17 @@ namespace Khorshid
         [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hWnd, int attr, ref int value, int size);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern int GetCurrentPackageFullName(ref int length, StringBuilder name);
+
+        public static bool IsPackaged()
+        {
+            try
+            {
+                int length = 0;
+                return GetCurrentPackageFullName(ref length, null) != 15700; // APPMODEL_ERROR_NO_PACKAGE
+            }
+            catch (EntryPointNotFoundException) { return false; }
+        }
 
         public const int WS_EX_TOOLWINDOW = 0x80;
         public const int CS_DROPSHADOW = 0x20000;
@@ -229,9 +239,12 @@ namespace Khorshid
             catch { return false; }
         }
 
+        // Set by the asset generator to render a fixed theme.
+        public static bool? ForceDark = null;
+
         public static Theme Current()
         {
-            if (IsDark())
+            if (ForceDark ?? IsDark())
                 return new Theme {
                     Bg = Color.FromArgb(32, 32, 32), Text = Color.FromArgb(240, 240, 240),
                     Muted = Color.FromArgb(155, 155, 155), Line = Color.FromArgb(58, 58, 58),
@@ -309,7 +322,7 @@ namespace Khorshid
             using (var g = c.CreateGraphics()) return g.DpiX / 96f;
         }
 
-        // Tray icon: today's Persian day number on a red rounded square.
+        // Tray icon: today's Persian day number on the logo's sun gradient.
         public static Bitmap DayIcon(int size, int day)
         {
             var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
@@ -318,7 +331,10 @@ namespace Khorshid
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                 g.Clear(Color.Transparent);
-                FillRound(g, Color.FromArgb(214, 52, 52), new RectangleF(0, 0, size - 1, size - 1), size * 0.22f);
+                var plate = new RectangleF(0, 0, size - 1, size - 1);
+                using (var brush = new LinearGradientBrush(RectangleF.Inflate(plate, 0, 1), Color.FromArgb(255, 150, 50), Color.FromArgb(222, 56, 46), 90f))
+                using (var path = Round(plate, size * 0.22f))
+                    g.FillPath(brush, path);
 
                 string txt = Persian.Digits(day);
                 float px = size * 0.85f;
@@ -358,9 +374,17 @@ namespace Khorshid
             miWidget = new ToolStripMenuItem("ویجت روی دسکتاپ") { CheckOnClick = true, Checked = Settings.Widget };
             miWidget.CheckedChanged += (s, e) => SetWidgetVisible(miWidget.Checked);
             menu.Items.Add(miWidget);
-            miStartup = new ToolStripMenuItem("اجرا هنگام ورود به ویندوز");
-            miStartup.Click += (s, e) => { Startup.Enabled = !Startup.Enabled; };
-            menu.Opening += (s, e) => { miStartup.Checked = Startup.Enabled; };
+            if (Startup.Packaged)
+            {
+                miStartup = new ToolStripMenuItem("اجرای خودکار با ویندوز…");
+                miStartup.Click += (s, e) => System.Diagnostics.Process.Start("ms-settings:startupapps");
+            }
+            else
+            {
+                miStartup = new ToolStripMenuItem("اجرا هنگام ورود به ویندوز");
+                miStartup.Click += (s, e) => { Startup.Enabled = !Startup.Enabled; };
+                menu.Opening += (s, e) => { miStartup.Checked = Startup.Enabled; };
+            }
             menu.Items.Add(miStartup);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("خروج", null, (s, e) => Quit());
@@ -786,29 +810,6 @@ namespace Khorshid
                 new RectangleF(14, 84, 112, 20), Align.Left, false);
             Ui.Text(g, holiday ?? Persian.HijriDate(today), fSmall, holiday != null ? th.Holiday : th.Muted,
                 new RectangleF(122, 84, right - 122, 20), Align.Right, true);
-        }
-    }
-
-    // ---------------------------------------------------------------- preview (used to check the drawing)
-
-    static class Preview
-    {
-        public static void Render(string dir)
-        {
-            Directory.CreateDirectory(dir);
-            using (var icon = Ui.DayIcon(32, Persian.Day(DateTime.Today))) icon.Save(Path.Combine(dir, "icon.png"));
-            Save(new CalendarPopup(), Path.Combine(dir, "popup.png"));
-            Save(new DesktopWidget(), Path.Combine(dir, "widget.png"));
-        }
-
-        static void Save(Form f, string path)
-        {
-            using (f)
-            using (var bmp = new Bitmap(f.ClientSize.Width, f.ClientSize.Height))
-            {
-                f.DrawToBitmap(bmp, new Rectangle(Point.Empty, f.ClientSize));
-                bmp.Save(path);
-            }
         }
     }
 }

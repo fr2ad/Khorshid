@@ -1,2 +1,6 @@
 *.exe
 /preview/
+/.tools/
+/dist/
+*.msix
+*.pfx
