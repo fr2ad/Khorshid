@@ -213,6 +213,18 @@ namespace Khorshid
         public const int WM_NCLBUTTONDOWN = 0xA1;
         public const int WM_NCLBUTTONDBLCLK = 0xA3;
         public const int HTCAPTION = 2;
+        public const int WM_WINDOWPOSCHANGING = 0x46;
+        public const int WM_MOUSEACTIVATE = 0x21;
+        public const int MA_NOACTIVATE = 3;
+        public const int SWP_NOZORDER = 0x4;
+        public static readonly IntPtr HWND_BOTTOM = (IntPtr)1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct WINDOWPOS
+        {
+            public IntPtr hwnd, hwndInsertAfter;
+            public int x, y, cx, cy, flags;
+        }
 
         // Rounded corners on Windows 11; silently ignored on older versions.
         public static void RoundCorners(IntPtr hWnd)
@@ -797,9 +809,24 @@ namespace Khorshid
             Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION, IntPtr.Zero);
         }
 
+        // Unless pinned on top, the widget sits on the desktop: it never takes focus
+        // and stays below all other windows, even when shown, clicked or dragged.
+        protected override bool ShowWithoutActivation { get { return true; } }
+
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == Native.WM_NCLBUTTONDBLCLK) { Raise(OpenCalendar); return; }
+            if (!Settings.WidgetTopMost)
+            {
+                if (m.Msg == Native.WM_MOUSEACTIVATE) { m.Result = (IntPtr)Native.MA_NOACTIVATE; return; }
+                if (m.Msg == Native.WM_WINDOWPOSCHANGING)
+                {
+                    var pos = (Native.WINDOWPOS)Marshal.PtrToStructure(m.LParam, typeof(Native.WINDOWPOS));
+                    pos.hwndInsertAfter = Native.HWND_BOTTOM;
+                    pos.flags &= ~Native.SWP_NOZORDER;
+                    Marshal.StructureToPtr(pos, m.LParam, false);
+                }
+            }
             base.WndProc(ref m);
         }
 
