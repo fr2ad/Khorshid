@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Khorshid is a Windows tray app showing the Persian (Solar Hijri) date, with a month calendar popup and an optional desktop widget. It is a single WinForms file (`Khorshid.cs`) compiled into a ~50 KB exe with no dependencies beyond .NET Framework 4.x. UI text is Persian and RTL.
+Khorshid is a Windows tray app showing the Persian (Solar Hijri) date, with a month calendar popup and an optional desktop widget. It is a single WinForms file (`Khorshid.cs`) compiled into a ~60 KB exe with no dependencies beyond .NET Framework 4.x. UI text is Persian and RTL.
 
 ## Commands
 

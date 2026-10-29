@@ -10,7 +10,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/fr2ad/Khorshid?label=download&color=e2402f)](https://github.com/fr2ad/Khorshid/releases/latest)
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0067c0)
-![Size](https://img.shields.io/badge/size-~50%20KB-ffb03b)
+![Size](https://img.shields.io/badge/size-~60%20KB-ffb03b)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555)](LICENSE)
 
 <img src="docs/screenshot-light.png" alt="Khorshid calendar opened from the Windows taskbar" width="900">
@@ -19,11 +19,11 @@
 
 ## Features
 
-- **Today's Persian date in the tray.** The icon shows the day of the month (۲, ۱۵, ۳۰…); hover for the full date, such as *شنبه ۲ آبان ۱۴۰۵*.
-- **Month calendar, one click away.** Saturday-first weeks, Gregorian day numbers under every Persian date, Fridays and official holidays in red, and today's Hijri (lunar) date at the top.
-- **Desktop widget.** An optional card with the weekday, date and holiday. Drag it anywhere, pin it above other windows, double-click it to open the calendar.
+- **Today's Persian date in the tray.** The icon shows the day of the month (۲, ۱۵, ۳۰…); hover for the full date and the day's occasion. The icon turns red on Fridays and holidays.
+- **Month calendar, one click away.** Saturday-first weeks, Gregorian day numbers under every Persian date, Fridays and all official holidays (including the lunar religious ones) tinted red, the occasions of Iran's official calendar, and today's Hijri (lunar) date at the top.
+- **Desktop widget.** An optional card with the weekday, date and the day's occasion. It sits on the desktop behind your windows; drag it anywhere, pin it above other windows, or double-click it to open the calendar.
 - **Feels native.** Follows Windows light and dark mode, sharp on high-DPI screens, rounded corners on Windows 11, and RTL throughout.
-- **Tiny and private.** A single ~50 KB exe with no dependencies beyond Windows itself. No internet access, no telemetry, no accounts.
+- **Tiny and private.** A single ~60 KB exe with no dependencies beyond Windows itself. No internet access, no telemetry, no accounts.
 
 <table>
   <tr>
@@ -76,7 +76,7 @@ Or exit Khorshid from its tray menu and delete its folder and `Khorshid` Start M
 | Left-click the tray icon | Open or close the month calendar |
 | `‹` `›`, mouse wheel, `←` `→` | Previous / next month |
 | **امروز** button or `Home` | Back to today |
-| Hover a day | See its full date and holiday in the footer |
+| Hover a day | See its full date and occasions in the footer |
 | `Esc` or click elsewhere | Close the calendar |
 | Right-click the tray icon | Desktop widget, start with Windows, exit |
 | Right-click the widget | Keep on top, hide widget |
