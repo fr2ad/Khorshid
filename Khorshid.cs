@@ -362,7 +362,7 @@ namespace Khorshid
         readonly DesktopWidget widget = new DesktopWidget();
         readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
         readonly ToolStripMenuItem miWidget, miStartup;
-        DateTime shownDate = DateTime.MinValue;
+        DateTime shownDate = DateTime.MinValue, lastPushed = DateTime.MinValue;
         IntPtr iconHandle = IntPtr.Zero;
 
         public TrayApp()
@@ -400,6 +400,8 @@ namespace Khorshid
             timer.Start();
             SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
             SystemEvents.TimeChanged += OnTimeChanged;
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            SystemEvents.SessionSwitch += OnSessionSwitch;
 
             RefreshDate();
             if (Settings.Widget) widget.Show();
@@ -408,11 +410,16 @@ namespace Khorshid
         void OnPreferenceChanged(object sender, UserPreferenceChangedEventArgs e) { widget.ApplyTheme(); }
         void OnTimeChanged(object sender, EventArgs e) { RefreshDate(); }
 
+        // After sleep or a locked session the shell may still be waking up; resend on the next tick.
+        void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e) { if (e.Mode == PowerModes.Resume) lastPushed = DateTime.MinValue; }
+        void OnSessionSwitch(object sender, SessionSwitchEventArgs e) { if (e.Reason == SessionSwitchReason.SessionUnlock) lastPushed = DateTime.MinValue; }
+
         void RefreshDate()
         {
+            // The shell can silently drop a tray icon update (NotifyIcon ignores the failure),
+            // for example right after resuming from sleep, so resend it every few minutes too.
             DateTime today = DateTime.Today;
-            if (today == shownDate) return;
-            shownDate = today;
+            if (today == shownDate && (DateTime.Now - lastPushed).TotalMinutes < 5) return;
 
             using (var bmp = Ui.DayIcon(SystemInformation.SmallIconSize.Width, Persian.Day(today)))
             {
@@ -426,6 +433,8 @@ namespace Khorshid
 
             widget.Invalidate();
             if (popup.Visible) popup.Invalidate();
+            shownDate = today;
+            lastPushed = DateTime.Now;
         }
 
         void TogglePopup()
@@ -448,6 +457,8 @@ namespace Khorshid
         {
             SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
             SystemEvents.TimeChanged -= OnTimeChanged;
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            SystemEvents.SessionSwitch -= OnSessionSwitch;
             timer.Stop();
             tray.Visible = false;
             tray.Dispose();
