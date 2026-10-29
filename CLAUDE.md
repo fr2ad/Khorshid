@@ -23,7 +23,8 @@ Builds use the in-box `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`, w
 ## Architecture (`Khorshid.cs`)
 
 - `Program` → single-instance mutex → `Application.Run(new TrayApp())`.
-- `Persian`: all calendar logic on top of `System.Globalization.PersianCalendar` / `HijriCalendar` — month/weekday names, Persian digit conversion (`Digits`), Saturday-first column (`Col`), and the fixed-date official holiday table (`Holiday`). Lunar religious holidays are intentionally not marked.
+- `Persian`: all calendar logic on top of `System.Globalization.PersianCalendar` — month/weekday names, Persian digit conversion (`Digits`), Saturday-first column (`Col`), `IsOff` (Friday or holiday), and Iran's lunar calendar (`Lunar`). `LunarStarts` holds the official first day of each lunar month (Iran uses moon sighting); outside it, `HijriCalendar` is the fallback and may be a day off. **Each year, append the next year's month starts** from the official calendar (derive them from the published lunar holidays) and check the new year's holidays against the official list.
+- `Occasions`: string tables of Solar, Lunar and Gregorian occasions (`"month/day text"`, `!` = official holiday, lunar day `0` = last day of the month), plus computed ones (last Friday of Ramadan, last Wednesday of the year). `For(date)` returns a day's occasions, holidays first.
 - `Settings`: hand-rolled `key=value` file at `%APPDATA%\Khorshid\settings.ini` (widget on/off, topmost, position).
 - `Startup`: start-with-Windows via the HKCU `Run` key — except when running as an MSIX package (`Native.IsPackaged()` via `GetCurrentPackageFullName`), where the tray menu instead opens Settings → Apps → Startup and the package's `StartupTask` (in `packaging/AppxManifest.xml`) handles it. Keep both paths working.
 - `Native`: P/Invoke (DPI awareness, DWM rounded corners/dark title, window dragging, package detection).

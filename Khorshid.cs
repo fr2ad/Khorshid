@@ -3,6 +3,7 @@
 // Build with build.ps1 (uses the C# compiler that ships with .NET Framework 4.x).
 
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -88,7 +89,45 @@ namespace Khorshid
 
         public static string HijriDate(DateTime d)
         {
-            return Digits(Hijri.GetDayOfMonth(d)) + " " + HijriMonths[Hijri.GetMonth(d) - 1] + " " + Digits(Hijri.GetYear(d));
+            int y, m, day;
+            Lunar(d, out y, out m, out day);
+            return Digits(day) + " " + HijriMonths[m - 1] + " " + Digits(y);
+        }
+
+        // First day of each lunar month in Iran's official calendar (Persian year, month, day),
+        // from 1 Ramadan 1447. Iran starts lunar months by moon sighting, so outside this table
+        // Windows' arithmetic HijriCalendar is used and may be off by a day. Extend it yearly.
+        const int LunarFirstYear = 1447, LunarFirstMonth = 9;
+        static readonly int[,] LunarStarts = {
+            { 1404, 11, 30 },   // Ramadan 1447
+            { 1405, 1, 1 }, { 1405, 1, 30 }, { 1405, 2, 28 },
+            { 1405, 3, 26 },    // Muharram 1448
+            { 1405, 4, 25 }, { 1405, 5, 23 }, { 1405, 6, 22 }, { 1405, 7, 20 }, { 1405, 8, 20 },
+            { 1405, 9, 20 }, { 1405, 10, 20 }, { 1405, 11, 19 }, { 1405, 12, 19 } };
+
+        static DateTime LunarStart(int i)
+        {
+            return Cal.ToDateTime(LunarStarts[i, 0], LunarStarts[i, 1], LunarStarts[i, 2], 0, 0, 0, 0);
+        }
+
+        public static void Lunar(DateTime d, out int year, out int month, out int day)
+        {
+            d = d.Date;
+            int last = LunarStarts.GetLength(0) - 1;
+            // The last listed month is known to have at least 29 days.
+            if (d >= LunarStart(0) && d < LunarStart(last).AddDays(29))
+            {
+                int i = last;
+                while (LunarStart(i) > d) i--;
+                int k = LunarFirstMonth - 1 + i;
+                year = LunarFirstYear + k / 12;
+                month = k % 12 + 1;
+                day = (d - LunarStart(i)).Days + 1;
+                return;
+            }
+            year = Hijri.GetYear(d);
+            month = Hijri.GetMonth(d);
+            day = Hijri.GetDayOfMonth(d);
         }
 
         public static string GregorianDate(DateTime d)
@@ -96,20 +135,126 @@ namespace Khorshid
             return d.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture);
         }
 
-        // Official holidays that fall on fixed Solar Hijri dates.
-        public static string Holiday(int month, int day)
+        // Fridays and official holidays.
+        public static bool IsOff(DateTime d) { return Col(d) == 6 || Occasions.IsHoliday(d); }
+    }
+
+    // ---------------------------------------------------------------- occasions
+
+    // Occasions from Iran's official calendar, as "month/day text"; a leading "!" marks an
+    // official holiday. Lunar day 0 means the last day of that month.
+    static class Occasions
+    {
+        static readonly string[] Solar = {
+            "1/1 !عید نوروز", "1/2 !عید نوروز", "1/3 !عید نوروز", "1/4 !عید نوروز",
+            "1/6 زادروز زرتشت", "1/12 !روز جمهوری اسلامی ایران", "1/13 !روز طبیعت",
+            "1/20 روز ملی فناوری هسته‌ای", "1/25 بزرگداشت عطار نیشابوری", "1/29 روز ارتش",
+            "2/1 بزرگداشت سعدی", "2/3 بزرگداشت شیخ بهایی، روز معماری", "2/10 روز ملی خلیج فارس",
+            "2/12 روز معلم", "2/25 بزرگداشت فردوسی، روز پاسداشت زبان فارسی",
+            "2/27 روز ارتباطات و روابط عمومی", "2/28 بزرگداشت خیام",
+            "3/1 بزرگداشت ملاصدرا", "3/3 سالروز آزادسازی خرمشهر", "3/14 !رحلت امام خمینی",
+            "3/15 !قیام ۱۵ خرداد", "3/29 درگذشت دکتر علی شریعتی", "3/31 شهادت دکتر مصطفی چمران",
+            "4/7 روز قوه قضاییه", "4/14 روز قلم", "4/22 بزرگداشت خوارزمی",
+            "5/8 بزرگداشت شیخ شهاب‌الدین سهروردی", "5/14 صدور فرمان مشروطیت", "5/17 روز خبرنگار",
+            "6/1 بزرگداشت ابوعلی سینا، روز پزشک", "6/2 آغاز هفته دولت", "6/4 روز کارمند",
+            "6/5 بزرگداشت زکریای رازی، روز داروسازی", "6/13 بزرگداشت ابوریحان بیرونی، روز تعاون",
+            "6/17 قیام ۱۷ شهریور", "6/21 روز سینما", "6/27 روز شعر و ادب فارسی، بزرگداشت شهریار",
+            "6/31 آغاز هفته دفاع مقدس",
+            "7/7 روز آتش‌نشانی و ایمنی، بزرگداشت شمس", "7/8 بزرگداشت مولوی", "7/13 روز نیروی انتظامی",
+            "7/15 روز روستا و عشایر", "7/20 بزرگداشت حافظ", "7/26 روز تربیت بدنی و ورزش",
+            "8/1 بزرگداشت ابوالفضل بیهقی", "8/8 روز نوجوان", "8/13 روز دانش‌آموز",
+            "8/24 روز کتاب، کتابخوانی و کتابدار",
+            "9/5 روز بسیج مستضعفان", "9/7 روز نیروی دریایی", "9/10 روز مجلس", "9/12 روز قانون اساسی",
+            "9/16 روز دانشجو", "9/25 روز پژوهش", "9/26 روز حمل‌ونقل و رانندگان", "9/30 شب یلدا",
+            "10/4 بزرگداشت رودکی", "10/13 شهادت سردار قاسم سلیمانی", "10/19 قیام ۱۹ دی مردم قم",
+            "10/20 شهادت امیرکبیر",
+            "11/1 بزرگداشت خاقانی", "11/12 بازگشت امام خمینی به ایران، آغاز دهه فجر",
+            "11/19 روز نیروی هوایی", "11/22 !پیروزی انقلاب اسلامی ایران", "11/29 قیام مردم تبریز",
+            "12/5 بزرگداشت خواجه نصیرالدین طوسی، روز مهندسی", "12/15 روز درختکاری",
+            "12/21 بزرگداشت نظامی گنجوی", "12/22 روز بزرگداشت شهدا", "12/25 بزرگداشت پروین اعتصامی",
+            "12/29 !روز ملی شدن صنعت نفت ایران" };
+
+        static readonly string[] Lunar = {
+            "1/1 آغاز سال هجری قمری", "1/9 !تاسوعای حسینی", "1/10 !عاشورای حسینی",
+            "1/12 شهادت امام زین‌العابدین (ع)",
+            "2/20 !اربعین حسینی", "2/28 !رحلت حضرت رسول اکرم (ص)، شهادت امام حسن مجتبی (ع)",
+            "2/0 !شهادت امام رضا (ع)",
+            "3/1 هجرت حضرت رسول اکرم (ص) به مدینه", "3/8 !شهادت امام حسن عسکری (ع)",
+            "3/12 ولادت حضرت رسول اکرم (ص) به روایت اهل سنت، آغاز هفته وحدت",
+            "3/17 !ولادت حضرت رسول اکرم (ص) و امام جعفر صادق (ع)",
+            "4/8 ولادت امام حسن عسکری (ع)", "4/10 وفات حضرت معصومه (س)",
+            "5/5 ولادت حضرت زینب (س)، روز پرستار",
+            "6/3 !شهادت حضرت فاطمه زهرا (س)", "6/13 وفات حضرت ام‌البنین (س)",
+            "6/20 ولادت حضرت فاطمه زهرا (س)، روز زن",
+            "7/1 ولادت امام محمد باقر (ع)", "7/3 شهادت امام علی‌النقی (ع)", "7/10 ولادت امام محمد تقی (ع)",
+            "7/13 !ولادت امام علی (ع)، روز پدر", "7/15 وفات حضرت زینب (س)",
+            "7/25 شهادت امام موسی کاظم (ع)", "7/27 !مبعث حضرت رسول اکرم (ص)",
+            "8/3 ولادت امام حسین (ع)، روز پاسدار", "8/4 ولادت حضرت ابوالفضل (ع)، روز جانباز",
+            "8/5 ولادت امام زین‌العابدین (ع)", "8/15 !ولادت حضرت قائم (عج)",
+            "9/10 وفات حضرت خدیجه (س)", "9/15 ولادت امام حسن مجتبی (ع)، روز اکرام", "9/18 شب قدر",
+            "9/19 ضربت خوردن حضرت علی (ع)", "9/20 شب قدر", "9/21 !شهادت حضرت علی (ع)", "9/22 شب قدر",
+            "10/1 !عید سعید فطر", "10/2 !تعطیل به مناسبت عید سعید فطر", "10/25 !شهادت امام جعفر صادق (ع)",
+            "11/1 ولادت حضرت معصومه (س)، روز دختران", "11/11 ولادت امام رضا (ع)",
+            "11/29 شهادت امام محمد تقی (ع)",
+            "12/1 سالروز ازدواج حضرت علی (ع) و حضرت فاطمه (س)", "12/7 شهادت امام محمد باقر (ع)",
+            "12/9 روز عرفه", "12/10 !عید سعید قربان", "12/15 ولادت امام علی‌النقی (ع)",
+            "12/18 !عید سعید غدیر خم", "12/20 ولادت امام موسی کاظم (ع)", "12/24 روز مباهله" };
+
+        static readonly string[] Gregorian = {
+            "1/1 آغاز سال میلادی", "5/1 روز جهانی کار و کارگر", "12/25 ولادت حضرت عیسی مسیح (ع)" };
+
+        static readonly Dictionary<int, string> solar = Index(Solar), lunar = Index(Lunar), gregorian = Index(Gregorian);
+
+        static Dictionary<int, string> Index(string[] table)
         {
-            if (month == 1 && day >= 1 && day <= 4) return "عید نوروز";
-            if (month == 1 && day == 12) return "روز جمهوری اسلامی";
-            if (month == 1 && day == 13) return "روز طبیعت";
-            if (month == 3 && day == 14) return "رحلت امام خمینی";
-            if (month == 3 && day == 15) return "قیام ۱۵ خرداد";
-            if (month == 11 && day == 22) return "پیروزی انقلاب اسلامی";
-            if (month == 12 && day == 29) return "ملی شدن صنعت نفت";
-            return null;
+            var map = new Dictionary<int, string>();
+            foreach (string entry in table)
+            {
+                int slash = entry.IndexOf('/'), space = entry.IndexOf(' ');
+                int key = int.Parse(entry.Substring(0, slash)) * 100 + int.Parse(entry.Substring(slash + 1, space - slash - 1));
+                map[key] = entry.Substring(space + 1);
+            }
+            return map;
         }
 
-        public static string Holiday(DateTime d) { return Holiday(Month(d), Day(d)); }
+        // All of a day's occasions, holidays first; each is "!text" for a holiday or plain text.
+        public static List<string> For(DateTime d)
+        {
+            var list = new List<string>();
+            string s;
+            int ly, lm, ld, ny, nm, nd;
+            Persian.Lunar(d, out ly, out lm, out ld);
+            Persian.Lunar(d.AddDays(1), out ny, out nm, out nd);
+            if (lunar.TryGetValue(lm * 100 + ld, out s)) list.Add(s);
+            if (nd == 1 && lunar.TryGetValue(lm * 100, out s)) list.Add(s);
+            if (solar.TryGetValue(Persian.Month(d) * 100 + Persian.Day(d), out s)) list.Add(s);
+            if (gregorian.TryGetValue(d.Month * 100 + d.Day, out s)) list.Add(s);
+
+            int py, pm, pd;
+            Persian.Lunar(d.AddDays(7), out py, out pm, out pd);
+            if (lm == 9 && pm != 9 && d.DayOfWeek == DayOfWeek.Friday) list.Add("روز جهانی قدس");
+            if (d.DayOfWeek == DayOfWeek.Wednesday && Persian.Year(d.AddDays(7)) != Persian.Year(d)) list.Add("آخرین چهارشنبه سال");
+
+            var sorted = list.FindAll(x => x.StartsWith("!"));
+            sorted.AddRange(list.FindAll(x => !x.StartsWith("!")));
+            return sorted;
+        }
+
+        public static bool IsHoliday(DateTime d)
+        {
+            foreach (string s in For(d)) if (s.StartsWith("!")) return true;
+            return false;
+        }
+
+        // The day's occasions as one line, or null; holiday tells whether any is an official holiday.
+        public static string Text(DateTime d, out bool holiday)
+        {
+            var list = For(d);
+            holiday = list.Count > 0 && list[0].StartsWith("!");
+            if (list.Count == 0) return null;
+            for (int i = 0; i < list.Count; i++) list[i] = list[i].TrimStart('!');
+            return string.Join("، ", list.ToArray());
+        }
     }
 
     // ---------------------------------------------------------------- settings
@@ -236,7 +381,7 @@ namespace Khorshid
 
     class Theme
     {
-        public Color Bg, Text, Muted, Line, Hover, Holiday, TodayBg, TodayText;
+        public Color Bg, Text, Muted, Line, Hover, Holiday, HolidayBg, TodayBg, TodayText;
 
         public static bool IsDark()
         {
@@ -260,12 +405,12 @@ namespace Khorshid
                 return new Theme {
                     Bg = Color.FromArgb(32, 32, 32), Text = Color.FromArgb(240, 240, 240),
                     Muted = Color.FromArgb(155, 155, 155), Line = Color.FromArgb(58, 58, 58),
-                    Hover = Color.FromArgb(48, 48, 48), Holiday = Color.FromArgb(255, 110, 110),
+                    Hover = Color.FromArgb(48, 48, 48), Holiday = Color.FromArgb(255, 138, 128), HolidayBg = Color.FromArgb(74, 36, 34),
                     TodayBg = Color.FromArgb(76, 194, 255), TodayText = Color.FromArgb(10, 10, 10) };
             return new Theme {
                 Bg = Color.FromArgb(249, 249, 249), Text = Color.FromArgb(26, 26, 26),
                 Muted = Color.FromArgb(110, 110, 110), Line = Color.FromArgb(224, 224, 224),
-                Hover = Color.FromArgb(234, 234, 234), Holiday = Color.FromArgb(205, 45, 45),
+                Hover = Color.FromArgb(234, 234, 234), Holiday = Color.FromArgb(196, 43, 28), HolidayBg = Color.FromArgb(253, 231, 228),
                 TodayBg = Color.FromArgb(0, 103, 192), TodayText = Color.White };
         }
     }
@@ -335,7 +480,10 @@ namespace Khorshid
         }
 
         // Tray icon: today's Persian day number on the logo's sun gradient.
-        public static Bitmap DayIcon(int size, int day)
+        public static Bitmap DayIcon(int size, int day) { return DayIcon(size, day, false); }
+
+        // The tray icon: day of the month on an orange plate, or a red one on Fridays and holidays.
+        public static Bitmap DayIcon(int size, int day, bool off)
         {
             var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
             using (var g = Graphics.FromImage(bmp))
@@ -344,7 +492,9 @@ namespace Khorshid
                 g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                 g.Clear(Color.Transparent);
                 var plate = new RectangleF(0, 0, size - 1, size - 1);
-                using (var brush = new LinearGradientBrush(RectangleF.Inflate(plate, 0, 1), Color.FromArgb(255, 150, 50), Color.FromArgb(222, 56, 46), 90f))
+                Color top = off ? Color.FromArgb(232, 72, 58) : Color.FromArgb(255, 150, 50);
+                Color bottom = off ? Color.FromArgb(170, 30, 28) : Color.FromArgb(222, 56, 46);
+                using (var brush = new LinearGradientBrush(RectangleF.Inflate(plate, 0, 1), top, bottom, 90f))
                 using (var path = Round(plate, size * 0.22f))
                     g.FillPath(brush, path);
 
@@ -359,7 +509,18 @@ namespace Khorshid
                     f.Dispose();
                     px -= 0.5f;
                 }
-                using (f) Text(g, txt, f, Color.White, new RectangleF(0, size * 0.04f, size, size), Align.Center, true);
+                // Draw with the same tight format it was measured with; the padded default format
+                // trimmed two-digit days down to their first digit.
+                using (f)
+                using (var sf = (StringFormat)StringFormat.GenericTypographic.Clone())
+                using (var white = new SolidBrush(Color.White))
+                {
+                    // The font's line is taller than the icon; LineLimit would skip it entirely.
+                    sf.FormatFlags = (sf.FormatFlags & ~StringFormatFlags.LineLimit) | StringFormatFlags.NoWrap | StringFormatFlags.NoClip;
+                    sf.Alignment = StringAlignment.Center;
+                    sf.LineAlignment = StringAlignment.Center;
+                    g.DrawString(txt, f, white, new RectangleF(0, size * 0.04f, size, size), sf);
+                }
             }
             return bmp;
         }
@@ -433,15 +594,17 @@ namespace Khorshid
             DateTime today = DateTime.Today;
             if (today == shownDate && (DateTime.Now - lastPushed).TotalMinutes < 5) return;
 
-            using (var bmp = Ui.DayIcon(SystemInformation.SmallIconSize.Width, Persian.Day(today)))
+            using (var bmp = Ui.DayIcon(SystemInformation.SmallIconSize.Width, Persian.Day(today), Persian.IsOff(today)))
             {
                 IntPtr old = iconHandle;
                 iconHandle = bmp.GetHicon();
                 tray.Icon = Icon.FromHandle(iconHandle);
                 if (old != IntPtr.Zero) Native.DestroyIcon(old);
             }
-            string tip = Persian.LongDate(today) + "\n" + today.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
-            tray.Text = tip.Length > 63 ? tip.Substring(0, 63) : tip;
+            bool holiday;
+            string occasion = Occasions.Text(today, out holiday);
+            string tip = Persian.LongDate(today) + "\n" + (occasion ?? today.ToString("d MMMM yyyy", CultureInfo.InvariantCulture));
+            tray.Text = tip.Length > 63 ? tip.Substring(0, 62) + "…" : tip;
 
             widget.Invalidate();
             if (popup.Visible) popup.Invalidate();
@@ -620,14 +783,19 @@ namespace Khorshid
                 cells[d - 1] = cell;
                 DateTime date = first.AddDays(d - 1);
                 bool isToday = date == today;
-                bool red = c == 6 || Persian.Holiday(viewMonth, d) != null;
+                var occasions = Occasions.For(date);
+                bool red = c == 6 || (occasions.Count > 0 && occasions[0].StartsWith("!"));
                 var box = RectangleF.Inflate(cell, -3, -2);
 
                 if (isToday) Ui.FillRound(g, th.TodayBg, box, 8);
                 else if (hoverDay == d - 1) Ui.FillRound(g, th.Hover, box, 8);
+                else if (red) Ui.FillRound(g, th.HolidayBg, box, 8);
 
                 Color main = isToday ? th.TodayText : red ? th.Holiday : th.Text;
-                Color small = isToday ? th.TodayText : th.Muted;
+                Color small = isToday ? th.TodayText : red ? th.Holiday : th.Muted;
+                // A dot marks days with occasions to read in the footer.
+                if (occasions.Count > 0)
+                    using (var b = new SolidBrush(small)) g.FillEllipse(b, box.Right - 7.5f, box.Y + 4, 4, 4);
                 Ui.Text(g, Persian.Digits(d), fDay, main, new RectangleF(box.X, box.Y, box.Width, box.Height - 11), Align.Center, true);
                 Ui.Text(g, date.Day.ToString(CultureInfo.InvariantCulture), fDaySmall, small,
                     new RectangleF(box.X, box.Bottom - 15, box.Width, 13), Align.Center, false);
@@ -642,11 +810,12 @@ namespace Khorshid
             if (focusDay > 0)
             {
                 DateTime fd = first.AddDays(focusDay - 1);
-                string holiday = Persian.Holiday(viewMonth, focusDay);
+                bool holiday;
+                string occasion = Occasions.Text(fd, out holiday);
                 var textRect = new RectangleF(100, footTop + 6, W - Pad - 100, 20);
                 Ui.Text(g, Persian.LongDate(fd), fFoot, th.Text, textRect, Align.Right, true);
                 textRect.Y += 20;
-                if (holiday != null) Ui.Text(g, holiday, fFoot, th.Holiday, textRect, Align.Right, true);
+                if (occasion != null) Ui.Text(g, occasion, fFoot, holiday ? th.Holiday : th.Muted, textRect, Align.Right, true);
                 else Ui.Text(g, fd.ToString("d MMMM yyyy", CultureInfo.InvariantCulture), fFoot, th.Muted, textRect, Align.Right, false);
             }
 
@@ -836,8 +1005,9 @@ namespace Khorshid
             Ui.Prepare(g, scale);
             g.Clear(th.Bg);
             DateTime today = DateTime.Today;
-            string holiday = Persian.Holiday(today);
-            bool red = Persian.Col(today) == 6 || holiday != null;
+            bool holiday;
+            string occasion = Occasions.Text(today, out holiday);
+            bool red = Persian.Col(today) == 6 || holiday;
 
             Ui.FillRound(g, red ? th.Holiday : th.TodayBg, new RectangleF(W - 12, 20, 4, H - 40), 2);
             float right = W - 22;
@@ -846,7 +1016,7 @@ namespace Khorshid
             Ui.Text(g, Persian.ShortDate(today), fBig, th.Text, new RectangleF(14, 36, right - 14, 42), Align.Right, true);
             Ui.Text(g, today.ToString("ddd, d MMM yyyy", CultureInfo.InvariantCulture), fSmall, th.Muted,
                 new RectangleF(14, 84, 112, 20), Align.Left, false);
-            Ui.Text(g, holiday ?? Persian.HijriDate(today), fSmall, holiday != null ? th.Holiday : th.Muted,
+            Ui.Text(g, occasion ?? Persian.HijriDate(today), fSmall, holiday ? th.Holiday : th.Muted,
                 new RectangleF(122, 84, right - 122, 20), Align.Right, true);
         }
     }

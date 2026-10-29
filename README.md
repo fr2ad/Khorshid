@@ -83,7 +83,9 @@ Or exit Khorshid from its tray menu and delete its folder and `Khorshid` Start M
 
 ## Holidays and Hijri dates
 
-Khorshid marks the official holidays that fall on fixed Solar Hijri dates: Nowruz (1–4 Farvardin), 12 and 13 Farvardin, 14 and 15 Khordad, 22 Bahman and 29 Esfand. Religious holidays follow the lunar calendar, move every year and depend on official announcements, so they aren't marked yet. The Hijri date comes from Windows' built-in Hijri calendar and can differ from Iran's official date by a day.
+Khorshid marks all of Iran's official holidays, both the fixed Solar Hijri ones (Nowruz, 12 and 13 Farvardin, 14 and 15 Khordad, 22 Bahman, 29 Esfand) and the religious ones that follow the lunar calendar (Tasua and Ashura, Arbaeen, Eid al-Fitr, Eid al-Adha, Ghadir and the rest). Fridays and holidays are tinted red in the calendar, and the tray icon turns red on those days. It also lists the main occasions of the official calendar; days that have one show a small dot, and hovering a day shows its occasions in the footer.
+
+Iran starts each lunar month by moon sighting, so Khorshid carries the official start dates of the lunar months (currently through 1405). Outside that range it falls back to Windows' built-in Hijri calendar, which can differ from Iran's official date by a day.
 
 ## Build from source
 
